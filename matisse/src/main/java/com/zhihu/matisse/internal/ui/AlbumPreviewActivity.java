@@ -34,7 +34,7 @@ public class AlbumPreviewActivity extends BasePreviewActivity implements
     public static final String EXTRA_ALBUM = "extra_album";
     public static final String EXTRA_ITEM = "extra_item";
 
-    private AlbumMediaCollection mCollection = new AlbumMediaCollection();
+    private final AlbumMediaCollection mCollection = new AlbumMediaCollection();
 
     private boolean mIsAlreadySetPosition;
 
@@ -48,7 +48,7 @@ public class AlbumPreviewActivity extends BasePreviewActivity implements
         }
         mCollection.onCreate(this, this);
         Album album = getIntent().getParcelableExtra(EXTRA_ALBUM);
-        mCollection.load(album);
+        mCollection.load(album, hashCode());
 
         Item item = getIntent().getParcelableExtra(EXTRA_ITEM);
         if (mSpec.countable) {

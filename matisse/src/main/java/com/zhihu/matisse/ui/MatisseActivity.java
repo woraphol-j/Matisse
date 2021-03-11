@@ -26,6 +26,11 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+
+import androidx.activity.result.ActivityResult;
+import androidx.activity.result.ActivityResultCallback;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.appcompat.app.ActionBar;
@@ -192,37 +197,7 @@ public class MatisseActivity extends AppCompatActivity implements
         if (resultCode != RESULT_OK)
             return;
 
-        if (requestCode == REQUEST_CODE_PREVIEW) {
-            Bundle resultBundle = data.getBundleExtra(BasePreviewActivity.EXTRA_RESULT_BUNDLE);
-            ArrayList<Item> selected = resultBundle.getParcelableArrayList(SelectedItemCollection.STATE_SELECTION);
-            mOriginalEnable = data.getBooleanExtra(BasePreviewActivity.EXTRA_RESULT_ORIGINAL_ENABLE, false);
-            int collectionType = resultBundle.getInt(SelectedItemCollection.STATE_COLLECTION_TYPE,
-                    SelectedItemCollection.COLLECTION_UNDEFINED);
-            if (data.getBooleanExtra(BasePreviewActivity.EXTRA_RESULT_APPLY, false)) {
-                Intent result = new Intent();
-                ArrayList<Uri> selectedUris = new ArrayList<>();
-                ArrayList<String> selectedPaths = new ArrayList<>();
-                if (selected != null) {
-                    for (Item item : selected) {
-                        selectedUris.add(item.getContentUri());
-                        selectedPaths.add(PathUtils.getPath(this, item.getContentUri()));
-                    }
-                }
-                result.putParcelableArrayListExtra(EXTRA_RESULT_SELECTION, selectedUris);
-                result.putStringArrayListExtra(EXTRA_RESULT_SELECTION_PATH, selectedPaths);
-                result.putExtra(EXTRA_RESULT_ORIGINAL_ENABLE, mOriginalEnable);
-                setResult(RESULT_OK, result);
-                finish();
-            } else {
-                mSelectedCollection.overwrite(selected, collectionType);
-                Fragment mediaSelectionFragment = getSupportFragmentManager().findFragmentByTag(
-                        MediaSelectionFragment.class.getSimpleName());
-                if (mediaSelectionFragment instanceof MediaSelectionFragment) {
-                    ((MediaSelectionFragment) mediaSelectionFragment).refreshMediaGrid();
-                }
-                updateBottomToolbar();
-            }
-        } else if (requestCode == REQUEST_CODE_CAPTURE) {
+        if (requestCode == REQUEST_CODE_CAPTURE) {
             // Just pass the data back to previous calling Activity.
             Uri contentUri = mMediaStoreCompat.getCurrentPhotoUri();
             String path = mMediaStoreCompat.getCurrentPhotoPath();
@@ -309,13 +284,55 @@ public class MatisseActivity extends AppCompatActivity implements
         return count;
     }
 
+    private final ActivityResultLauncher<Intent> previewLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),new ActivityResultCallback<ActivityResult>(){
+        @Override public void onActivityResult(ActivityResult activityResult) {
+            if (activityResult.getResultCode() != RESULT_OK){
+                return;
+            }
+            Intent data = activityResult.getData();
+            if (data == null){
+                return;
+            }
+            Bundle resultBundle = data.getBundleExtra(BasePreviewActivity.EXTRA_RESULT_BUNDLE);
+            if (resultBundle == null){
+                return;
+            }
+            ArrayList<Item> selected = resultBundle.getParcelableArrayList(SelectedItemCollection.STATE_SELECTION);
+            mOriginalEnable = data.getBooleanExtra(BasePreviewActivity.EXTRA_RESULT_ORIGINAL_ENABLE, false);
+            int collectionType = resultBundle.getInt(SelectedItemCollection.STATE_COLLECTION_TYPE, SelectedItemCollection.COLLECTION_UNDEFINED);
+            if (data.getBooleanExtra(BasePreviewActivity.EXTRA_RESULT_APPLY, false)) {
+                Intent result = new Intent();
+                ArrayList<Uri> selectedUris = new ArrayList<>();
+                ArrayList<String> selectedPaths = new ArrayList<>();
+                if (selected != null) {
+                    for (Item item : selected) {
+                        selectedUris.add(item.getContentUri());
+                        selectedPaths.add(PathUtils.getPath(MatisseActivity.this, item.getContentUri()));
+                    }
+                }
+                result.putParcelableArrayListExtra(EXTRA_RESULT_SELECTION, selectedUris);
+                result.putStringArrayListExtra(EXTRA_RESULT_SELECTION_PATH, selectedPaths);
+                result.putExtra(EXTRA_RESULT_ORIGINAL_ENABLE, mOriginalEnable);
+                setResult(RESULT_OK, result);
+                finish();
+            } else {
+                mSelectedCollection.overwrite(selected, collectionType);
+                Fragment mediaSelectionFragment = getSupportFragmentManager().findFragmentByTag(MediaSelectionFragment.class.getSimpleName());
+                if (mediaSelectionFragment instanceof MediaSelectionFragment) {
+                    ((MediaSelectionFragment) mediaSelectionFragment).refreshMediaGrid();
+                }
+                updateBottomToolbar();
+            }
+        }
+    });
+
     @Override
     public void onClick(View v) {
         if (v.getId() == R.id.button_preview) {
             Intent intent = new Intent(this, SelectedPreviewActivity.class);
             intent.putExtra(BasePreviewActivity.EXTRA_DEFAULT_BUNDLE, mSelectedCollection.getDataWithBundle());
             intent.putExtra(BasePreviewActivity.EXTRA_RESULT_ORIGINAL_ENABLE, mOriginalEnable);
-            startActivityForResult(intent, REQUEST_CODE_PREVIEW);
+            previewLauncher.launch(intent);
         } else if (v.getId() == R.id.button_apply) {
             Intent result = new Intent();
             ArrayList<Uri> selectedUris = (ArrayList<Uri>) mSelectedCollection.asListOfUri();
@@ -419,7 +436,7 @@ public class MatisseActivity extends AppCompatActivity implements
         intent.putExtra(AlbumPreviewActivity.EXTRA_ITEM, item);
         intent.putExtra(BasePreviewActivity.EXTRA_DEFAULT_BUNDLE, mSelectedCollection.getDataWithBundle());
         intent.putExtra(BasePreviewActivity.EXTRA_RESULT_ORIGINAL_ENABLE, mOriginalEnable);
-        startActivityForResult(intent, REQUEST_CODE_PREVIEW);
+        previewLauncher.launch(intent);
     }
 
     @Override
